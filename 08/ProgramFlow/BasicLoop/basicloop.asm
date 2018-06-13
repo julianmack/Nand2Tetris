@@ -1,0 +1,144 @@
+//push constant 0
+@0
+D=A
+@SP
+A=M
+M=D
+@SP
+M=M+1
+//pop local 0         // initializes sum = 0
+@LCL
+D=M
+@0
+D=D+A
+@13
+M=D
+@SP
+M=M-1
+A=M
+D=M
+@13
+A=M
+M=D
+//label loop_start
+(basicloop.None$loop_start)
+//push argument 0     //should be 3
+@ARG
+D=M
+@0
+A=D+A
+D=M
+@SP
+A=M
+M=D
+@SP
+M=M+1
+//push local 0        //current sum
+@LCL
+D=M
+@0
+A=D+A
+D=M
+@SP
+A=M
+M=D
+@SP
+M=M+1
+//add                 //3 + sum
+@SP
+M=M-1
+A=M
+D=M
+@SP
+M=M-1
+A=M
+M=D+M
+@SP
+M=M+1
+//pop local 0	        // new_sum = sum + counter
+@LCL
+D=M
+@0
+D=D+A
+@13
+M=D
+@SP
+M=M-1
+A=M
+D=M
+@13
+A=M
+M=D
+//push argument 0
+@ARG
+D=M
+@0
+A=D+A
+D=M
+@SP
+A=M
+M=D
+@SP
+M=M+1
+//push constant 1     //3-1 (first time round)
+@1
+D=A
+@SP
+A=M
+M=D
+@SP
+M=M+1
+//sub
+@SP
+M=M-1
+A=M
+D=M
+@SP
+M=M-1
+A=M
+M=M-D
+@SP
+M=M+1
+//pop argument 0      // counter--
+@ARG
+D=M
+@0
+D=D+A
+@13
+M=D
+@SP
+M=M-1
+A=M
+D=M
+@13
+A=M
+M=D
+//push argument 0
+@ARG
+D=M
+@0
+A=D+A
+D=M
+@SP
+A=M
+M=D
+@SP
+M=M+1
+//if-goto loop_start  // if counter > 0, goto loop_start
+@SP
+M=M-1
+A=M
+D=M
+@basicloop.None$loop_start
+D;JNE
+//push local 0
+@LCL
+D=M
+@0
+A=D+A
+D=M
+@SP
+A=M
+M=D
+@SP
+M=M+1

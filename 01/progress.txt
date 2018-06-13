@@ -1,0 +1,17 @@
+Chip
+Nand	Nand gate (primitive)
+Not	done
+And	done
+Or done
+Xor done
+Mux done
+DMux done
+Not16 done
+And16 done
+Or16 done
+Mux16 done
+Or8Way done
+Mux4Way16 not sure?
+Mux8Way16 ntsure
+DMux4Way 
+DMux8Way
