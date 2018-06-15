@@ -26,8 +26,9 @@ def main():
             tokenizer = JackTokenizer(fp)
             while tokenizer.hasMoreTokens():
                 crnt_tkn, type = tokenizer.advance()
-                out_string = "<{}> {} </{}>\n".format(type, crnt_tkn, type)
-                tokens_xml.append(out_string)
+                if crnt_tkn:
+                    out_string = "<{}> {} </{}>\n".format(type, crnt_tkn, type)
+                    f.write(out_string)
             f.write("</tokens>\n")
 
 
@@ -56,7 +57,7 @@ def check_path_type():
     return in_f_paths
 
 def setup_token_out(fp):
-    token_out_str = "{}.xml".format(fp.replace(".jack", ""))
+    token_out_str = "{}Tokens.xml".format(fp.replace(".jack", ""))
     token_fp = os.path.join(sys.path[0], token_out_str)
     return token_fp
 
