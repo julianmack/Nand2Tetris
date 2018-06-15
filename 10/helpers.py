@@ -15,3 +15,12 @@ def is_symbol(char):
 
 def is_numeric(char):
     return char.isnumeric()
+
+keywords = ["class", "constructor", "function",
+            "method", "field", "static", "var",
+            "int", "char", "boolean", "void",
+            "true", "false", "null", "this",
+            "let", "do", "if", "else", "while",
+            "return"]
+
+jack_sample = "class Main {function void main() {var Array a;"
