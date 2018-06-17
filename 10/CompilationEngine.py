@@ -6,7 +6,9 @@ INT_CONST = "integerConst"
 STRING_CONST = "stringConstant"
 
 statementTypes = ["let", "if", "while", "do", "return"]
-
+operators = ["+", "-", "*", "/", "&", "|", "<", ">", "="]
+unaryOperators = ["-", "~"]
+keywordConstants = ["true", "false", "null", "this"]
 from lxml import etree
 import sys
 
@@ -24,6 +26,7 @@ class CompilationEngine():
         self.f_out = open(fp_out, 'w')
 
         self.compileClass()
+        self.quit()
         #print(prettify(self.out_root))
 
     def compileClass(self):
@@ -107,7 +110,6 @@ class CompilationEngine():
         self.check_and_add(SYMBOL, "{")
         while self.check_texts(KEYWORD, "var"): #check for VarDec
             self.compileVarDec()
-        self.quit()
         self.compileStatements()
         self.check_and_add(SYMBOL, "}")
 
@@ -135,7 +137,7 @@ class CompilationEngine():
         self.addXMLSubElem("statements")
         while self.check_texts(KEYWORD, statementTypes):
             tkn = self.get(False)
-            type = self.text
+            type = tkn.text
             if type == "let":
                 self.compileLet()
             elif type == "if":
@@ -147,6 +149,7 @@ class CompilationEngine():
             elif type == "return":
                 self.compileReturn()
         else:
+            print("hi")
             self.fault()
         self.crnt_elem = self.crnt_elem.getparent()
 
@@ -204,7 +207,7 @@ class CompilationEngine():
         "do" subroutineCall ";" """
         self.addXMLSubElem("doStatement")
         self.addToXmlTree(self.get()) #do
-        self.subroutineCall()
+        self.compileTerm()
         self.check_and_add(SYMBOL, ";")
         self.crnt_elem = self.crnt_elem.getparent()
 
@@ -213,9 +216,73 @@ class CompilationEngine():
         "return" expression? ";" """
         self.addXMLSubElem("returnStatement")
         self.addToXmlTree(self.get()) #return
-        if not check_texts(SYMBOL, ";"):
+        if not self.check_texts(SYMBOL, ";"):
             self.compileExpression()
         self.check_and_add(SYMBOL, ";")
+        self.crnt_elem = self.crnt_elem.getparent()
+
+    def compileExpression(self):
+        """ Grammar:
+        term (op term)* """
+        self.addXMLSubElem("expression")
+        self.compileTerm()
+        if self.check_texts(SYMBOL, operators): #op present
+            self.addToXmlTree(self.get())
+            self.compileTerm()
+        self.crnt_elem = self.crnt_elem.getparent()
+
+    def compileTerm(self):
+        """Grammar:
+        integerConstant | stringConstant | keywordConstant |
+        varName | varname "[" expression "]" |
+        subroutineCall | "(" expression ")" |
+        unaryOp term
+
+        subroutineCall Grammar:
+        subroutineName "(" expressionList ")" |
+        (className|varName) "." subroutineName
+        "(" expressionList ")"
+        """
+        self.addXMLSubElem("term")
+        tkn = self.get(False) #don't increment
+        tag = tkn.tag
+        if tag in [INT_CONST, STRING_CONST]: #integerConstant | stringConstant
+            self.addToXmlTree(tkn, True)
+        elif self.check_texts(KEYWORD, keywordConstants): #keywordConstant
+            self.addToXmlTree(tkn, True)
+        elif self.check_texts(SYMBOL, unaryOperators): #unaryOp
+            self.addToXmlTree(tkn, True)
+        elif self.check_texts(IDENTIFIER):
+            self.addToXmlTree(tkn, True) #i.e. now test next tkn
+            if self.check_texts(SYMBOL, "["): #varname "[" expression "]"
+                self.addToXmlTree(self.get()) #"["
+                self.compileExpression()
+                self.check_and_add(SYMBOL, "]")
+            elif self.check_texts(SYMBOL, "("): #subroutineName "(" expressionList ")"
+                self.addToXmlTree(self.get())
+                self.compileExpressionList()
+                self.check_and_add(SYMBOL, ")")
+            elif self.check_texts(SYMBOL, "."): #(className|varName) "." subroutineName"(" expressionList ")"
+                self.addToXmlTree(self.get())
+                self.check_and_add(IDENTIFIER) #subroutineName
+                self.check_and_add(SYMBOL, "(")
+                self.compileExpressionList()
+                self.check_and_add(SYMBOL, ")")
+        else:
+            print(tkn.tag)
+            self.fault()
+        self.crnt_elem = self.crnt_elem.getparent()
+
+    def compileExpressionList(self):
+        """Grammar:
+        (expression ("," expression)* )?
+        """
+        self.addXMLSubElem("expressionList")
+        if not self.check_texts(SYMBOL, ")"):
+            self.compileExpression()
+        while self.check_texts(SYMBOL, ","):
+            self.addToXmlTree(self.get())
+            self.compileExpression()
         self.crnt_elem = self.crnt_elem.getparent()
 
     def check_and_add(self, tag, text=None):
@@ -232,7 +299,6 @@ class CompilationEngine():
                 return True
         else:
             return False
-
 
     def check_next(self, tag, texts=None, increment=True):
         """get next token and checks that it has correct text
@@ -252,16 +318,20 @@ class CompilationEngine():
         else:
             print("Invalid program (or end of program)")
             print(tkn.tag, tkn.text)
-            sys.exit(1)
+            self.quit()
 
-    def addToXmlTree(self, tkn):
+    def addToXmlTree(self, tkn, increment=False):
         parent = self.crnt_elem
         child = etree.SubElement(parent, tkn.tag)
         child.text = tkn.text
+        if increment:
+            self.num +=1
+
     def addXMLSubElem(self, name):
         """Adds new sub-elem to tree"""
         NewChild = etree.SubElement(self.crnt_elem, name)
         self.crnt_elem = NewChild
+
     def get(self, increment = True):
         """returns next token"""
         if self.num < self.total:
@@ -275,8 +345,13 @@ class CompilationEngine():
         else:
             return None
 
-    def compileExpression(self):
-        pass
+    def get_2(self):
+        """returns next two tokens. With single increment.
+        """
+        tkn1 = get(True)
+        tkn2 = get(False) #i.e. will test this one
+        return tkn1, tkn2
+
 
     def fault(self):
         """called if incorrect program provided
@@ -315,4 +390,5 @@ class CompilationEngine():
 
 if __name__ == "__main__":
     #tests
-    compiler = CompilationEngine("arraytest/mainTokens.xml", "hi")
+    #compiler = CompilationEngine("arraytest/mainTokens.xml", "hi")
+    compiler = CompilationEngine("expressionlessSquare/mainTokens.xml", "hi")
