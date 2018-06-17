@@ -23,11 +23,16 @@ class CompilationEngine():
         self.total = len(self.tokens)
         self.out_root = etree.Element("class") # root for output
         self.crnt_elem = self.out_root
-        self.f_out = open(fp_out, 'w')
-
         self.compileClass()
-        self.quit()
-        #print(prettify(self.out_root))
+        self.__write_file(fp_out)
+        #self.quit()
+
+    def __write_file(self, fp_out):
+        with open(fp_out, 'w') as f:
+            rem = "<?xml version=\"1.0\" ?>"
+            out_text = prettify(self.out_root).replace(rem, "")
+            f.write(out_text)
+
 
     def compileClass(self):
         """Class Grammar:
@@ -75,7 +80,7 @@ class CompilationEngine():
         self.addXMLSubElem("subroutineDec")
 
         self.addToXmlTree(self.get())   #constructor|function|method
-        self.check_and_add(KEYWORD)     #"void"| type
+        self.addToXmlTree(self.get())     #"void"| type
         self.check_and_add(IDENTIFIER)  #subroutineName
         self.check_and_add(SYMBOL, "(")
         self.compileParameterList()
@@ -135,6 +140,7 @@ class CompilationEngine():
         let|if|while|do|return
         """
         self.addXMLSubElem("statements")
+        tkn = self.get(False)
         while self.check_texts(KEYWORD, statementTypes):
             tkn = self.get(False)
             type = tkn.text
@@ -148,9 +154,8 @@ class CompilationEngine():
                 self.compileDo()        #restore parent node
             elif type == "return":
                 self.compileReturn()
-        else:
-            print("hi")
-            self.fault()
+            else:
+                self.fault()
         self.crnt_elem = self.crnt_elem.getparent()
 
     def compileLet(self):
@@ -246,12 +251,18 @@ class CompilationEngine():
         self.addXMLSubElem("term")
         tkn = self.get(False) #don't increment
         tag = tkn.tag
+        #print("before: ", tkn.tag, tkn.text)
         if tag in [INT_CONST, STRING_CONST]: #integerConstant | stringConstant
             self.addToXmlTree(tkn, True)
         elif self.check_texts(KEYWORD, keywordConstants): #keywordConstant
             self.addToXmlTree(tkn, True)
         elif self.check_texts(SYMBOL, unaryOperators): #unaryOp
             self.addToXmlTree(tkn, True)
+            self.compileTerm()
+        elif self.check_texts(SYMBOL, "("): # "(" expression ")"
+            self.addToXmlTree(tkn, True)
+            self.compileExpression()
+            self.check_and_add(SYMBOL, ")")
         elif self.check_texts(IDENTIFIER):
             self.addToXmlTree(tkn, True) #i.e. now test next tkn
             if self.check_texts(SYMBOL, "["): #varname "[" expression "]"
@@ -269,7 +280,8 @@ class CompilationEngine():
                 self.compileExpressionList()
                 self.check_and_add(SYMBOL, ")")
         else:
-            print(tkn.tag)
+            #self.quit()
+            #print("after: ", tkn.tag, tkn.text)
             self.fault()
         self.crnt_elem = self.crnt_elem.getparent()
 
@@ -290,15 +302,14 @@ class CompilationEngine():
 
     def check_texts(self, tag, texts=None, increment=False):
         tkn = self.get(increment)
-        text = tkn.text
-        #print(increment)
-        if tkn.tag == tag: #texts could be array of strings or string
-            if (not texts) or \
-                (type(texts) is str and text == texts) or \
-                (type(texts) is list and text in texts):
-                return True
-        else:
-            return False
+        if tkn is not None:
+            text = tkn.text
+            if tkn.tag == tag: #texts could be array of strings or string
+                if (not texts) or \
+                    (type(texts) is str and text == texts) or \
+                    (type(texts) is list and text in texts):
+                    return True
+        return False
 
     def check_next(self, tag, texts=None, increment=True):
         """get next token and checks that it has correct text
@@ -308,6 +319,7 @@ class CompilationEngine():
         you aren't sure what next routine is"""
 
         tkn = self.get(increment)
+
         text = tkn.text
         #print(tag, tkn.tag, tkn.text)
         if tkn.tag == tag: #texts could be array of strings or string
@@ -340,10 +352,10 @@ class CompilationEngine():
             self.tkn = tkn
             if increment:
                 self.num +=1
-            #print(tkn.tag, tkn.text)
             return tkn
         else:
             return None
+
 
     def get_2(self):
         """returns next two tokens. With single increment.
@@ -362,33 +374,12 @@ class CompilationEngine():
 
     def quit(self):
         print(prettify(self.out_root))
-        print("quiting")
+        print("quiting...")
         sys.exit(1)
-"""
-    def check_next(self, tag, text=None, increment=True):
-        #get next token and checks that it has correct text
-        and tag.
-        Set increment =false when you would like to check next
-        value w/o updating current tkn. This is useful when
-        #you arent sure what next routine is
-
-        tkn = self.get(increment)
-        if tkn.tag == tag:
-            if not text:
-                return tkn
-            elif tkn.text == text:
-                return tkn
-        else:
-            print("Invalid program (or end of program)")
-            sys.exit(1)
-
-"""
-
-
 
 
 
 if __name__ == "__main__":
     #tests
     #compiler = CompilationEngine("arraytest/mainTokens.xml", "hi")
-    compiler = CompilationEngine("expressionlessSquare/mainTokens.xml", "hi")
+    compiler = CompilationEngine("expressionlessSquare/mainT.xml", "hi")
