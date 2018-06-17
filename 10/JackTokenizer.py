@@ -16,6 +16,7 @@ class JackTokenizer():
         self.file = open(fp, 'r')
         self.crnt_pos = 0
         self.data = self.__remove_comments()
+        #print(self.data)
         self.crnt_pos = 0 # ptr to current position
         self.final_pos = len(self.data) - 1
 
@@ -26,6 +27,7 @@ class JackTokenizer():
         updates self.crnt_tkn to this txt
         """
         fst_c = self.__cur_char()
+
         if fst_c == "\"": #String
             tkn = self.__read_string()
             type = STRING_CONST
@@ -46,8 +48,6 @@ class JackTokenizer():
             return None, None
         else:
             pass #invalid char - throw error
-        print (self.crnt_pos)
-        #print(type)
         return tkn, type
 
     def __read_sym(self, sym):
@@ -95,24 +95,34 @@ class JackTokenizer():
 
     def __remove_comments(self):
         lines = []
-        comment = False
+        multiline_comment = False
+        flag = None
         for line in self.file.readlines():
-            if comment == True and "\*" in line: #comment ended
-                comment = False
-            elif "/*" in line: #comment begun
-                comment = True
+            if multiline_comment == True and "*/" in line: #comment ended
+                flag = 1
+                multiline_comment = False
+            elif "/*" in line:
+                multiline_comment = (not "*/" in line) #comment begun
+                flag = 2
+
             elif "//" in line: #inline comment
+                flag = 3
                 head, tail = line.split("//", 1)
                 lines.append(head.strip())
-            else:
+            elif not multiline_comment:
+                flag = 4
                 lines.append(line.strip())
+            else:
+                flag = 5
+
+
+            #print(multiline_comment, flag, line, end="")
         #print ("".join(lines))
         return "".join(lines)
 
 
     def hasMoreTokens(self):
-        next = self.crnt_pos + 1
-        if next <= self.final_pos:
+        if self.crnt_pos <= self.final_pos:
             return True
         else:
             self.file.close()
