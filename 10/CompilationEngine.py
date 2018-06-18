@@ -2,7 +2,7 @@
 SYMBOL = "symbol"
 KEYWORD = "keyword"
 IDENTIFIER = "identifier"
-INT_CONST = "integerConst"
+INT_CONST = "integerConstant"
 STRING_CONST = "stringConstant"
 
 statementTypes = ["let", "if", "while", "do", "return"]
@@ -10,6 +10,7 @@ operators = ["+", "-", "*", "/", "&", "|", "<", ">", "="]
 unaryOperators = ["-", "~"]
 keywordConstants = ["true", "false", "null", "this"]
 from lxml import etree
+
 import sys
 
 from helpers import prettify

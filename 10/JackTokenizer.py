@@ -2,7 +2,7 @@
 SYMBOL = "symbol"
 KEYWORD = "keyword"
 IDENTIFIER = "identifier"
-INT_CONST = "integerConst"
+INT_CONST = "integerConstant"
 STRING_CONST = "stringConstant"
 
 
