@@ -15,7 +15,6 @@ THAT   = "that"
 CLASS  = "class"
 SUBROUTINE = "subroutine"
 
-
 statementTypes = ["let", "if", "while", "do", "return"]
 operators = ["+", "-", "*", "/", "&", "|", "<", ">", "="]
 unaryOperators = ["-", "~"]
