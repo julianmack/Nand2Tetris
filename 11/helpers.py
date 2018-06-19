@@ -49,6 +49,20 @@ def prettify(elem):
     reparsed = minidom.parseString(rough_string)
     return reparsed.toprettyxml(indent="  ")
 
+def remove_special_xml(sym):
+    if sym == "<":
+        return "&lt;"
+    elif sym == ">":
+        return "&gt;"
+    elif sym == "\"":
+        return "&quot;"
+    elif sym == "&":
+        return "&amp;"
+    else:
+        return sym
+
+
+
 if __name__ == "__main__":
     #tests
     is_symbol(3)

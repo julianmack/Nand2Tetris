@@ -7,6 +7,7 @@ import os
 from JackTokenizer import JackTokenizer
 from CompilationEngine import CompilationEngine as Compiler
 from helpers import change_fp_name
+from Token import Token
 def main():
     if len(sys.argv) != 2:
         print("Usage: python3 JackAnalyzer.py path/file.jack\nor...\
@@ -20,26 +21,16 @@ def main():
     #Generate Tokens...
     token_xml_files = []
     for fp in in_f_paths:
+        tokenizer = JackTokenizer(fp)
+        tokens = []
+        while tokenizer.hasMoreTokens():
+            text, tag = tokenizer.advance()
+            if tag:
+                tokens.append(Token(text, tag))
         #setup outpath:
-        token_fp = change_fp_name(fp, ".jack", "Tokens.xml")
-        token_xml_files.append(token_fp) #use this later
-        with open(token_fp, 'w') as f:
-            f.write("<tokens>\n")
-            #create Tokenizer
-            tokenizer = JackTokenizer(fp)
-            while tokenizer.hasMoreTokens():
-                crnt_tkn, type = tokenizer.advance()
-                if crnt_tkn:
-                    out_string = "<{}> {} </{}>\n".format(type, crnt_tkn, type)
-                    f.write(out_string)
-            f.write("</tokens>\n")
-
-    #Create compiler:
-    for fp in token_xml_files:
-        out_fp = change_fp_name(fp, "Tokens.xml", "new.xml")
-        Compiler(fp, out_fp)
-
-
+        out_fp = change_fp_name(fp, ".jack", "new.xml")
+        compiler = Compiler(tokens, out_fp)
+        compiler.compileClass()
 
 
 def check_path_type():

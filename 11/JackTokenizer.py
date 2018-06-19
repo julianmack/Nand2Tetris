@@ -8,8 +8,6 @@ STRING_CONST = "stringConstant"
 
 from helpers import is_alpha, is_symbol, is_numeric, keywords, jack_sample
 
-
-
 class JackTokenizer():
     def __init__(self, fp):
         self.fp = fp
@@ -52,16 +50,7 @@ class JackTokenizer():
 
     def __read_sym(self, sym):
         self.crnt_pos += 1
-        if sym == "<":
-            return "&lt;"
-        elif sym == ">":
-            return "&gt;"
-        elif sym == "\"":
-            return "&quot;"
-        elif sym == "&":
-            return "&amp;"
-        else:
-            return sym
+        return sym
 
     def __read_token(self, first_char, fn):
         tkn = first_char
