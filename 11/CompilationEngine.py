@@ -16,7 +16,11 @@ CLASS  = "class"
 SUBROUTINE = "subroutine"
 
 statementTypes = ["let", "if", "while", "do", "return"]
-operators = ["+", "-", "*", "/", "&", "|", "<", ">", "="]
+#vm_translation of operators
+operators = {"+": "add", "-": "sub", "*": None, \
+            "/": None, "&": "and", "|": "or", \
+            "<": "lt", ">": "gt", "=": "eq"}
+
 unaryOperators = ["-", "~"]
 keywordConstants = ["true", "false", "null", "this"]
 import sys
@@ -49,7 +53,7 @@ class CompilationEngine():
         while self.check_texts(KEYWORD, ["constructor", "function", "method"]):
             self.compileSubroutineDec()
         self.check_next(SYMBOL, "}")
-
+        self.VM.close()
 
     def compileClassVarDec(self):
         """ClassVarDec Grammar:
@@ -71,7 +75,7 @@ class CompilationEngine():
         if sub_type.text == "method":
             self.symbols.define(THIS, self.className, ARG)
         self.compileParameterList()
-        self.check_next(SYMBOL, ")") #leave this
+        self.check_next(SYMBOL, ")")
         self.compileSubroutineBody()
         self.symbols.startSubroutine() #wipe vars from Symbol Table
 
@@ -91,7 +95,6 @@ class CompilationEngine():
         "{" varDec* statements "}"
         "(" ParameterList ")" SubroutineBody """
         self.check_next(SYMBOL, "{")
-
         while self.check_texts(KEYWORD, "var", True): #check for VarDec
             self.compileVarDec()
         self.compileStatements()
@@ -113,18 +116,12 @@ class CompilationEngine():
         """
         while self.check_texts(KEYWORD, statementTypes):
             type = self.get().text
-            if type == "let":
-                self.compileLet()
-            elif type == "if":
-                self.compileIf()
-            elif type == "while":
-                self.compileWhile()
-            elif type == "do":
-                self.compileDo()        #restore parent node
-            elif type == "return":
-                self.compileReturn()
-            else:
-                self.fault()
+            if type == "let":           self.compileLet()
+            elif type == "if":          self.compileIf()
+            elif type == "while":       self.compileWhile()
+            elif type == "do":          self.compileDo()        #restore parent node
+            elif type == "return":      self.compileReturn()
+            else:                       self.fault()
 
     def compileLet(self):
         """ Grammar:
@@ -183,8 +180,15 @@ class CompilationEngine():
         term (op term)* """
         self.compileTerm()
         if self.check_texts(SYMBOL, operators): #op present
-            operator = self.get()
-            self.compileTerm()
+            operator = self.get().text
+            op_vm = operators[operator]
+            if op_vm:
+                self.compileTerm()
+                self.VM.writeArithmetic(op_vm)
+            elif operator == "*":
+                self.VM.writeCall("Math.multiply", 2)
+            elif operator == "/":
+                self.VM.writeCall("Math.divide", 2)
 
     def compileTerm(self):
         """Grammar:
@@ -200,39 +204,55 @@ class CompilationEngine():
         """
         tkn = self.get(False) #don't increment
         tag = tkn.tag
-        #debug
+        #debug:
         #print("before: ", tkn.tag, tkn.text)
         if tag == INT_CONST: #integerConstant
-            int = self.get()
+            int = self.get().text
+            self.VM.writePush("constant", int)
         elif tag == STRING_CONST: #stringConstant
             string = self.get()
+            #TODO
         elif self.check_texts(KEYWORD, keywordConstants): #keywordConstant
-            keyword = self.get()
-        elif self.check_texts(SYMBOL, unaryOperators): #unaryOp
-            unOperator = self.get()
+            keyword = self.get().text
+            if keyword == "false" or keyword == "null":
+                self.VM.writePush("constant", 0)
+            elif keyword == "true":
+                self.VM.writePush("constant", 1)
+                self.VM.writeArithmetic("neg")
+            elif keyword == "void":
+                #TODO - must set flag?
+                #need to pop returned value
+        elif self.check_texts(SYMBOL, unaryOperators, True): #unaryOp
             self.compileTerm()
+            self.VM.writeArithmetic("neg")
         elif self.check_texts(SYMBOL, "(", True): # "(" expression ")"
             self.compileExpression()
             self.check_next(SYMBOL, ")")
         elif self.check_texts(IDENTIFIER):
-            identifier = self.get()
-            if self.check_texts(SYMBOL, "[", True): #array
-                #access info from symbol table
-                #varname "[" expression "]"
+            identifier = self.get().text
+            if self.check_texts(SYMBOL, "[", True):
+                #ARRAY: varname "[" expression "]"
                 self.compileExpression()
                 self.check_next(SYMBOL, "]")
-            elif self.check_texts(SYMBOL, "(", True): #function call
-                #subroutineName "(" expressionList ")"
+                #TODO
+            elif self.check_texts(SYMBOL, "(", True):
+                #FUNCTION_CALL: subroutineName "(" expressionList ")"
                 self.compileExpressionList()
                 self.check_next(SYMBOL, ")")
-            elif self.check_texts(SYMBOL, ".", True): #method call
-                #(className|varName) "." subroutineName"(" expressionList ")"
+                #TODO
+                #determine number of arguments nArgs and then:
+                self.VM.writeCall(identifier, nArgs)
+            elif self.check_texts(SYMBOL, ".", True):
+                #METHOD CALL: (className|varName) "." subroutineName"(" expressionList ")"
+                #TODO - push THIS onto stack. (i.e. identifier is obj)
                 sub_name = self.get() #subroutineName
                 self.check_next(SYMBOL, "(")
                 self.compileExpressionList()
                 self.check_next(SYMBOL, ")")
+                #TODO - call the method
             else: #variable
-                pass
+                type, kind, index = self.VM.get(identifier)
+                self.VM.writePush(kind, index)
         else:
             #print("after: ", tkn.tag, tkn.text)
             self.fault()

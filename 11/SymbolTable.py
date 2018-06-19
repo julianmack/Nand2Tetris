@@ -31,6 +31,12 @@ class SymbolTable():
         elif kind in [ARG, VAR]:
             self.subVars[name] = {KIND: kind, TYPE: type, INDEX: index}
             self.print_table(self.subVars)
+    def get(self, name):
+        row = self.symbols[name]
+        type = row[TYPE]
+        kind = row[KIND]
+        index = row[INDEX]
+        return type, kind, index
 
     def varCount(self, kind):
         return self.__lp(kind, self.subVars) + \
