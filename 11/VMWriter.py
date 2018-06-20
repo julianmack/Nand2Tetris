@@ -17,7 +17,7 @@ class VMWriter():
         self.out.write("if-goto {}".format(label))
     def writeCall(self, name, nArgs):
         self.out.write("call {} {}".format(name, nArgs))
-    def writeCall(self, name, nLocals):
+    def writeFunction(self, name, nLocals):
         self.out.write("function {} {}".format(name, nLocals))
     def writeReturn(self):
         self.out.write("return")

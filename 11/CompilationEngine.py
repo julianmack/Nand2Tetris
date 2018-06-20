@@ -6,12 +6,16 @@ INT_CONST = "integerConstant"
 STRING_CONST = "stringConstant"
 
 #Identifier Types
+CONSTANT = "constant"
 STATIC = "static"
 FIELD  = "field"
 ARG    = "argument"
 LCL    = "local"
 THIS   = "this"
 THAT   = "that"
+POINTER = "pointer"
+TEMP = "temp"
+
 CLASS  = "class"
 SUBROUTINE = "subroutine"
 
@@ -73,7 +77,9 @@ class CompilationEngine():
         subroutineName "(" ParameterList ")" SubroutineBody """
         self.symbols.startSubroutine() #wipe previous sub_vars from Symbol Table
         sub_type, ret_type, sub_name, _ = self.get_mult(4)
-        if sub_type.text == "method":
+        self.subType = sub_type.text #(constructor|function|method)
+        self.name = "{}.{}".format(self.className, self.sub_name.text)
+        if self.subType == "method":
             self.symbols.define(THIS, self.className, ARG)
         self.compileParameterList()
         self.check_next(SYMBOL, ")")
@@ -97,6 +103,9 @@ class CompilationEngine():
         self.check_next(SYMBOL, "{")
         while self.check_texts(KEYWORD, "var", True): #check for VarDec
             self.compileVarDec()
+        n_vars = self.symbols.varCount(LCL)
+        self.VM.writeFunction(self.name, n_vars)
+        self.updatePointer()
         self.compileStatements()
         self.check_next(SYMBOL, "}")
 
@@ -109,6 +118,16 @@ class CompilationEngine():
             name = self.get()
             self.symbols.define(name.text, type.text, LCL)
         self.check_next(SYMBOL, ";")
+
+    def updatePointer(self):
+        if self.subType == "method":
+            self.VM.writePush(ARG, 0)
+            self.VM.writePop(POINTER, 0) #store self in this
+        elif self.subType == "constructor":
+            n_args = self.symbols.varCount(FIELD) #i.e.not num args from constructor call as some field vars may not be initialised immediately
+            self.VM.writePush(CONSTANT, n_args)
+            self.VM.writeCall("Memory.alloc", 1)
+            self.VM.writePop(POINTER, 0) #store object in this
 
     def compileStatements(self):
         """ Grammar:
@@ -129,22 +148,30 @@ class CompilationEngine():
         "=" expression ";" """
         varName = self.get().text
         type, kind, index = self.symbols.get(varName)
+        isArray = False
         if self.check_texts(SYMBOL, "[", True): #Array
             self.compileExpression()
+            self.VM.writePush(kind, index)
+            self.VM.writeArithmetic("add")  #ram[index] to be accessed
+            isArray = True
             self.check_next(SYMBOL, "]")
-        #TODO - deal with Array
         self.check_next(SYMBOL, "=")
         self.compileExpression()
+        if isArray:
+            self.VM.writePop(TEMP, 0)
+            self.VM.writePop(POINTER, 1)    #ram[index] to be accessed
+            self.VM.writePush(TEMP, 0)
+            self.VM.writePop(THAT, 0)
+        else:
+            self.VM.writePop(kind, index)
         self.check_next(SYMBOL, ";")
-        #add to variable:
-        self.VM.writePop(kind, index)
 
     def compileIf(self):
         """ Grammar:
         "if" "(" expression ")" "{" statements"}"
         ("else"  "{" statements"}" )? """
-        label_1 = "L1.{}".format(self.get_label(1))
-        label_2 = "L2.{}".format(self.get_label(2))
+        label_1 = "IF_FALSE.{}".format(self.get_label(1))
+        label_2 = "IF_END.{}".format(self.get_label(2))
         self.check_next(SYMBOL, "(")
         self.compileExpression()
         self.VM.writeArithmetic("not")
@@ -163,8 +190,8 @@ class CompilationEngine():
     def compileWhile(self):
         """ Grammar:
         "while" "(" expression ")" "{" statements"}" """
-        label_3 = "L3.{}".format(self.get_label(3))
-        label_4 = "L4.{}".format(self.get_label(4))
+        label_3 = "WHILE_END.{}".format(self.get_label(3))
+        label_4 = "WHILE_LOOP.{}".format(self.get_label(4))
         self.check_next(SYMBOL, "(")
         self.VM.writeLabel(label_4)
         self.compileExpression()
@@ -173,14 +200,15 @@ class CompilationEngine():
         self.get_mult(2)
         self.compileStatements()
         self.VM.writeGoto(label_4)
-        self.check_next(SYMBOL, "}")
         self.VM.writeLabel(label_3)
+        self.check_next(SYMBOL, "}")
+
 
     def compileDo(self):
         """ Grammar:
         "do" subroutineCall ";" """
-        #TODO - work out what this statement is for
         self.compileTerm()
+        self.VM.writePop(TEMP, 0) #i.e. do statments only have side-efects
         self.check_next(SYMBOL, ";")
 
     def compileReturn(self):
@@ -188,8 +216,11 @@ class CompilationEngine():
         "return" expression? ";" """
         if not self.check_texts(SYMBOL, ";"):
             self.compileExpression()
+        else: #no expresison to return
+            self.VM.writePush(CONSTANT, 0)
+        self.VM.writeReturn()
         self.check_next(SYMBOL, ";")
-        #TODO - push const 0 if there is no expression
+
 
     def compileExpression(self):
         """ Grammar:
@@ -197,9 +228,9 @@ class CompilationEngine():
         self.compileTerm()
         if self.check_texts(SYMBOL, operators): #op present
             operator = self.get().text
+            self.compileTerm()
             op_vm = operators[operator]
             if op_vm:
-                self.compileTerm()
                 self.VM.writeArithmetic(op_vm)
             elif operator == "*":
                 self.VM.writeCall("Math.multiply", 2)
@@ -220,8 +251,7 @@ class CompilationEngine():
         """
         tkn = self.get(False) #don't increment
         tag = tkn.tag
-        #debug:
-        #print("before: ", tkn.tag, tkn.text)
+        #print("before: ", tkn.tag, tkn.text) #debug
         if tag == INT_CONST: #integerConstant
             int = self.get().text
             self.VM.writePush("constant", int)
@@ -239,9 +269,8 @@ class CompilationEngine():
             elif keyword == "true":
                 self.VM.writePush("constant", 1)
                 self.VM.writeArithmetic("neg")
-            elif keyword == "void":
-                #TODO - must set flag?
-                #need to pop returned value
+            elif keyword == "this":
+                self.VM.writePush("pointer", 0)
         elif self.check_texts(SYMBOL, unaryOperators): #unaryOp
             un_op = self.get().text
             un_op_vm = unaryOperators[un_op]
@@ -251,29 +280,39 @@ class CompilationEngine():
             self.compileExpression()
             self.check_next(SYMBOL, ")")
         elif self.check_texts(IDENTIFIER):
-            identifier = self.get().text
+            name = self.get().text
             if self.check_texts(SYMBOL, "[", True):
                 #ARRAY: varname "[" expression "]"
+                type, kind, index = self.symbols.get(name)
                 self.compileExpression()
+                self.VM.writePush(kind, index)
+                self.VM.writeArithmetic("add")  #ram[index] to be accessed
+                self.VM.writePop(POINTER, 1)
+                self.VM.writePush(THAT, 0)
                 self.check_next(SYMBOL, "]")
-                #TODO
             elif self.check_texts(SYMBOL, "(", True):
-                #FUNCTION_CALL: subroutineName "(" expressionList ")"
-                self.compileExpressionList()
+                #FUNCTION/CONSTRUCTOR call: subroutineName "(" expressionList ")"
+                nArgs = self.compileExpressionList()
+                function_name = "{}.{}".format(self.className, name)
+                self.VM.writeCall(name, nArgs)
                 self.check_next(SYMBOL, ")")
-                #TODO
-                #determine number of arguments nArgs and then:
-                self.VM.writeCall(identifier, nArgs)
             elif self.check_texts(SYMBOL, ".", True):
                 #METHOD CALL: (className|varName) "." subroutineName"(" expressionList ")"
-                #TODO - push THIS onto stack. (i.e. identifier is obj)
-                sub_name = self.get() #subroutineName
+                nArgs = 0
+                sub_name = self.get().text #subroutineName
+                type, kind, index = self.symbols.get(name)
+                if type: #a variable
+                    self.VM.writePush(kind, index)
+                    function_name = "{}.{}".format(type, sub_name)
+                    nArgs += 1
+                else: #a separate class
+                    function_name = "{}.{}".format(name, sub_name)
                 self.check_next(SYMBOL, "(")
-                self.compileExpressionList()
+                nArgs += self.compileExpressionList()
                 self.check_next(SYMBOL, ")")
-                #TODO - call the method
+                self.VM.writeCall(function_name, nArgs)#call the method
             else: #variable
-                type, kind, index = self.VM.get(identifier)
+                type, kind, index = self.VM.get(name)
                 self.VM.writePush(kind, index)
         else:
             #print("after: ", tkn.tag, tkn.text)
@@ -282,11 +321,17 @@ class CompilationEngine():
     def compileExpressionList(self):
         """Grammar:
         (expression ("," expression)* )?
+
+        Returns number of expressions
         """
+        count = 0
         if not self.check_texts(SYMBOL, ")"):
             self.compileExpression()
+            count +=1
         while self.check_texts(SYMBOL, ",", True):
             self.compileExpression()
+            count +=1
+        return count
 
     def check_texts(self, tag, texts=None, increment=False):
         """ONLY INCREMENTS IF TRUE"""
