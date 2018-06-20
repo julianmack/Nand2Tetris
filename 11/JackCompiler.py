@@ -28,7 +28,7 @@ def main():
             if tag:
                 tokens.append(Token(text, tag))
         #setup outpath:
-        out_fp = change_fp_name(fp, ".jack", "new.xml")
+        out_fp = change_fp_name(fp, ".jack", ".vm")
         compiler = Compiler(tokens, out_fp)
         compiler.compileClass()
 

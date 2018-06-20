@@ -53,7 +53,7 @@ class CompilationEngine():
         class_name = self.get()  #classname tkn
         self.className = class_name.text
         self.check_next(SYMBOL, "{")
-        while self.check_texts(KEYWORD, ["static", "field"]):
+        while self.check_texts(KEYWORD, [STATIC, FIELD]):
             self.compileClassVarDec()
         while self.check_texts(KEYWORD, ["constructor", "function", "method"]):
             self.compileSubroutineDec()
@@ -64,6 +64,8 @@ class CompilationEngine():
         """ClassVarDec Grammar:
         (static|field) type VarName ("," VarName)* ";" """
         kind_t, type_t, name_t= self.get_mult(3)
+        if kind_t.text == FIELD:
+            kind_t.text = THIS
         self.symbols.define(name_t.text, type_t.text, kind_t.text)
         while self.check_texts(SYMBOL, ",", True): #another VarName
             name_t = self.get() #VarName
@@ -78,7 +80,7 @@ class CompilationEngine():
         self.symbols.startSubroutine() #wipe previous sub_vars from Symbol Table
         sub_type, ret_type, sub_name, _ = self.get_mult(4)
         self.subType = sub_type.text #(constructor|function|method)
-        self.name = "{}.{}".format(self.className, self.sub_name.text)
+        self.name = "{}.{}".format(self.className, sub_name.text)
         if self.subType == "method":
             self.symbols.define(THIS, self.className, ARG)
         self.compileParameterList()
@@ -90,7 +92,7 @@ class CompilationEngine():
         """ParameterList Grammar:
         (type varName) ("," type varName)
          """
-        if self.check_texts(KEYWORD):  #if parameter present
+        if not self.check_texts(SYMBOL, ")"):  #if parameter present
             type, name = self.get_mult(2)
             self.symbols.define(name.text, type.text, ARG)
         while self.check_texts(SYMBOL, ",", True): #another VarName
@@ -99,7 +101,7 @@ class CompilationEngine():
 
     def compileSubroutineBody(self):
         """subroutineBody Grammar:
-        "{" varDec* statements "}""""
+        "{" varDec* statements "}"""
         self.check_next(SYMBOL, "{")
         while self.check_texts(KEYWORD, "var", True): #check for VarDec
             self.compileVarDec()
@@ -124,7 +126,10 @@ class CompilationEngine():
             self.VM.writePush(ARG, 0)
             self.VM.writePop(POINTER, 0) #store self in this
         elif self.subType == "constructor":
-            n_args = self.symbols.varCount(FIELD) #i.e.not num args from constructor call as some field vars may not be initialised immediately
+            n_args = self.symbols.varCount(THIS)
+            print(n_args)
+            self.symbols.print_table(self.symbols.classVars)
+            self.symbols.print_table(self.symbols.subVars)
             self.VM.writePush(CONSTANT, n_args)
             self.VM.writeCall("Memory.alloc", 1)
             self.VM.writePop(POINTER, 0) #store object in this
@@ -246,8 +251,7 @@ class CompilationEngine():
 
         subroutineCall Grammar:
         subroutineName "(" expressionList ")" |
-        (className|varName) "." subroutineName
-        "(" expressionList ")"
+        (className|varName) "." subroutineName "(" expressionList ")"
         """
         tkn = self.get(False) #don't increment
         tag = tkn.tag
@@ -294,7 +298,8 @@ class CompilationEngine():
                 #FUNCTION/CONSTRUCTOR call: subroutineName "(" expressionList ")"
                 nArgs = self.compileExpressionList()
                 function_name = "{}.{}".format(self.className, name)
-                self.VM.writeCall(name, nArgs)
+                self.VM.writePush(POINTER, 0)
+                self.VM.writeCall(function_name, nArgs + 1)
                 self.check_next(SYMBOL, ")")
             elif self.check_texts(SYMBOL, ".", True):
                 #METHOD CALL: (className|varName) "." subroutineName"(" expressionList ")"
@@ -312,8 +317,9 @@ class CompilationEngine():
                 self.check_next(SYMBOL, ")")
                 self.VM.writeCall(function_name, nArgs)#call the method
             else: #variable
-                type, kind, index = self.VM.get(name)
+                type, kind, index = self.symbols.get(name)
                 self.VM.writePush(kind, index)
+                
         else:
             #print("after: ", tkn.tag, tkn.text)
             self.fault()
@@ -341,10 +347,13 @@ class CompilationEngine():
             if tkn.tag == tag: #texts could be array of strings or string
                 if (not texts) or \
                     (type(texts) is str and text == texts) or \
-                    (type(texts) is list and text in texts):
+                    ((type(texts) is list or (type(texts) is dict)) \
+                    and text in texts):
                     if increment:
                         self.num +=1
                     return True
+        #print("looking for: {} of type {}".format(texts, tag))
+        #print("found {} of type {}\n".format(tkn.text, tkn.tag))
         return False
 
     def check_next(self, tag, texts=None, increment=True):
@@ -364,7 +373,7 @@ class CompilationEngine():
                 return tkn
         else:
             print("Invalid program (or end of program)")
-            print(tkn.tag, tkn.text)
+            print("problem with:", self.num, tkn.tag, tkn.text)
             self.quit()
 
 
@@ -373,10 +382,10 @@ class CompilationEngine():
         if self.num < self.total:
             tkn = self.tokens[self.num]
             self.tkn = tkn
+            #debug:
+            #print(self.num, tkn.tag, tkn.text)
             if increment:
                 self.num +=1
-            #debug:
-            #print(tkn.tag, tkn.text)
             return tkn
         else:
             return None

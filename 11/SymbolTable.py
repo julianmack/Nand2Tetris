@@ -7,6 +7,7 @@ SCOPE = "scope"
 ARG    = "argument"
 LCL    = "local"
 STATIC = "static"
+THIS   = "this"
 FIELD  = "field"
 CONSTANT = "constant"
 
@@ -26,25 +27,31 @@ class SymbolTable():
     def define(self, name, type, kind):
         index = self.varCount(kind)
         #add to dict - use name as key
-        if kind in [STATIC, FIELD]:
+        if kind in [STATIC, THIS]:
             self.classVars[name] = {KIND: kind, TYPE: type, INDEX: index}
-            self.print_table(self.classVars)
+            #self.print_table(self.classVars)
         elif kind in [ARG, LCL]:
             self.subVars[name] = {KIND: kind, TYPE: type, INDEX: index}
-            self.print_table(self.subVars)
+            #self.print_table(self.subVars)
+
     def get(self, name):
         try:
-            row = self.symbols[name]
+            row = self.subVars[name]
         except KeyError:
-            row = None
-
+            try:
+                row = self.classVars[name]
+            except KeyError:
+                row = None
         if row:
             type = row[TYPE]
             kind = row[KIND]
             index = row[INDEX]
+            #print(type, kind, index)
             return type, kind, index
         else:
+            #print(None, None, None)
             return None, None, None
+
 
     def varCount(self, kind):
         return self.__lp(kind, self.subVars) + \
