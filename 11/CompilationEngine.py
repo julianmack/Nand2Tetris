@@ -9,7 +9,7 @@ STRING_CONST = "stringConstant"
 STATIC = "static"
 FIELD  = "field"
 ARG    = "argument"
-VAR    = "var"
+LCL    = "local"
 THIS   = "this"
 THAT   = "that"
 CLASS  = "class"
@@ -21,7 +21,7 @@ operators = {"+": "add", "-": "sub", "*": None, \
             "/": None, "&": "and", "|": "or", \
             "<": "lt", ">": "gt", "=": "eq"}
 
-unaryOperators = ["-", "~"]
+unaryOperators = {"-": "neg", "~": "not"}
 keywordConstants = ["true", "false", "null", "this"]
 import sys
 
@@ -39,6 +39,7 @@ class CompilationEngine():
         self.symbols = SymbolTable()#create symbol table(s)
         #possibly should call compileclass from outside
         self.VM = VMWriter(fp_out)
+        self.labels = {} #to create unique labels
 
     def compileClass(self):
         """Class Grammar:
@@ -67,7 +68,7 @@ class CompilationEngine():
 
 
     def compileSubroutineDec(self):
-        """ClassVarDec Grammar:
+        """SubroutineDec Grammar:
         (constructor|function|method) ("void"| type)
         subroutineName "(" ParameterList ")" SubroutineBody """
         self.symbols.startSubroutine() #wipe previous sub_vars from Symbol Table
@@ -92,8 +93,7 @@ class CompilationEngine():
 
     def compileSubroutineBody(self):
         """subroutineBody Grammar:
-        "{" varDec* statements "}"
-        "(" ParameterList ")" SubroutineBody """
+        "{" varDec* statements "}""""
         self.check_next(SYMBOL, "{")
         while self.check_texts(KEYWORD, "var", True): #check for VarDec
             self.compileVarDec()
@@ -104,10 +104,10 @@ class CompilationEngine():
         """ Grammar:
         "var" type varName ("," varName)* ";" """
         type, name = self.get_mult(2)
-        self.symbols.define(name.text, type.text, VAR)
+        self.symbols.define(name.text, type.text, LCL)
         while self.check_texts(SYMBOL, ",", True): #another VarName
             name = self.get()
-            self.symbols.define(name.text, type.text, VAR)
+            self.symbols.define(name.text, type.text, LCL)
         self.check_next(SYMBOL, ";")
 
     def compileStatements(self):
@@ -124,47 +124,62 @@ class CompilationEngine():
             else:                       self.fault()
 
     def compileLet(self):
-        """ Grammar:
+        """ Grammar: e.g: let x = 4
         "let" varName ("[" expression "]")?
         "=" expression ";" """
         varName = self.get().text
-        kind = self.symbols.KindOf(varName)
-        index = self.symbols.IndexOf(varName)
-
-        if self.check_texts(SYMBOL, "[", True): #nested expression
+        type, kind, index = self.symbols.get(varName)
+        if self.check_texts(SYMBOL, "[", True): #Array
             self.compileExpression()
             self.check_next(SYMBOL, "]")
+        #TODO - deal with Array
         self.check_next(SYMBOL, "=")
         self.compileExpression()
         self.check_next(SYMBOL, ";")
+        #add to variable:
+        self.VM.writePop(kind, index)
 
     def compileIf(self):
         """ Grammar:
         "if" "(" expression ")" "{" statements"}"
         ("else"  "{" statements"}" )? """
+        label_1 = "L1.{}".format(self.get_label(1))
+        label_2 = "L2.{}".format(self.get_label(2))
         self.check_next(SYMBOL, "(")
         self.compileExpression()
-        _, _ = self.get_mult(2)
+        self.VM.writeArithmetic("not")
+        self.VM.writeIf(label_1)
+        self.get_mult(2)            #")" "{"
         self.compileStatements()
-        _ = self.get()
+        self.get()
+        self.VM.writeGoto(label_2)                 #"}"
+        self.VM.writeLabel(label_1)
         if self.check_texts(KEYWORD, "else", True): #nested expression
             self.check_next(SYMBOL, "{")
             self.compileStatements()
             self.check_next(SYMBOL, "}")
+        self.VM.writeLabel(label_2)
 
     def compileWhile(self):
         """ Grammar:
         "while" "(" expression ")" "{" statements"}" """
-
+        label_3 = "L3.{}".format(self.get_label(3))
+        label_4 = "L4.{}".format(self.get_label(4))
         self.check_next(SYMBOL, "(")
+        self.VM.writeLabel(label_4)
         self.compileExpression()
-        _, _ = self.get_mult(2)
+        self.VM.writeArithmetic("not")
+        self.VM.writeIf(label_3)
+        self.get_mult(2)
         self.compileStatements()
+        self.VM.writeGoto(label_4)
         self.check_next(SYMBOL, "}")
+        self.VM.writeLabel(label_3)
 
     def compileDo(self):
         """ Grammar:
         "do" subroutineCall ";" """
+        #TODO - work out what this statement is for
         self.compileTerm()
         self.check_next(SYMBOL, ";")
 
@@ -174,6 +189,7 @@ class CompilationEngine():
         if not self.check_texts(SYMBOL, ";"):
             self.compileExpression()
         self.check_next(SYMBOL, ";")
+        #TODO - push const 0 if there is no expression
 
     def compileExpression(self):
         """ Grammar:
@@ -210,8 +226,12 @@ class CompilationEngine():
             int = self.get().text
             self.VM.writePush("constant", int)
         elif tag == STRING_CONST: #stringConstant
-            string = self.get()
-            #TODO
+            string = self.get().text
+            self.VM.writePush("constant", len(string))
+            self.VM.writeCall("String.new", 1)
+            for char in string:
+                self.VM.writePush("constant", ord(char))
+                self.VM.writeCall("String.appendChar", 2)
         elif self.check_texts(KEYWORD, keywordConstants): #keywordConstant
             keyword = self.get().text
             if keyword == "false" or keyword == "null":
@@ -222,9 +242,11 @@ class CompilationEngine():
             elif keyword == "void":
                 #TODO - must set flag?
                 #need to pop returned value
-        elif self.check_texts(SYMBOL, unaryOperators, True): #unaryOp
+        elif self.check_texts(SYMBOL, unaryOperators): #unaryOp
+            un_op = self.get().text
+            un_op_vm = unaryOperators[un_op]
             self.compileTerm()
-            self.VM.writeArithmetic("neg")
+            self.VM.writeArithmetic(un_op_vm)
         elif self.check_texts(SYMBOL, "(", True): # "(" expression ")"
             self.compileExpression()
             self.check_next(SYMBOL, ")")
@@ -330,6 +352,18 @@ class CompilationEngine():
     def quit(self):
         print("quiting...")
         sys.exit(1)
+
+    def get_label(self, key):
+        """Accesses value from dictionary.
+        Creates entry if none exists"""
+        try:
+            val = self.labels[key]
+            self.labels[key] = val + 1
+        except KeyError:
+            #create entry
+            val = 0
+            self.labels[key] = 1
+        return val
 
 
 

@@ -74,7 +74,7 @@ class CompilationEngine():
         self.crnt_elem = self.crnt_elem.getparent()
 
     def compileSubroutineDec(self):
-        """ClassVarDec Grammar:
+        """SubroutineDec Grammar:
         (constructor|function|method)
         ("void"| type) subroutineName
         "(" ParameterList ")" SubroutineBody """
@@ -93,8 +93,7 @@ class CompilationEngine():
     def compileParameterList(self):
         """ParameterList Grammar:
         (type varName) ("," type varName)
-        ("void"| type) subroutineName
-        "(" ParameterList ")" SubroutineBody """
+        """
         self.addXMLSubElem("parameterList")
 
         if self.check_texts(KEYWORD):  #if parameter present
@@ -111,7 +110,7 @@ class CompilationEngine():
     def compileSubroutineBody(self):
         """subroutineBody Grammar:
         "{" varDec* statements "}"
-        "(" ParameterList ")" SubroutineBody """
+        """
         self.addXMLSubElem("subroutineBody")
         self.check_and_add(SYMBOL, "{")
         while self.check_texts(KEYWORD, "var"): #check for VarDec

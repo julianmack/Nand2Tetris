@@ -4,10 +4,11 @@ TYPE = "type"
 INDEX = "index"
 SCOPE = "scope"
 
+ARG    = "argument"
+LCL    = "local"
 STATIC = "static"
 FIELD  = "field"
-ARG    = "argument"
-VAR    = "var"
+CONSTANT = "constant"
 
 class SymbolTable():
     """Symbols are held in nested dictionary of the form:
@@ -28,7 +29,7 @@ class SymbolTable():
         if kind in [STATIC, FIELD]:
             self.classVars[name] = {KIND: kind, TYPE: type, INDEX: index}
             self.print_table(self.classVars)
-        elif kind in [ARG, VAR]:
+        elif kind in [ARG, LCL]:
             self.subVars[name] = {KIND: kind, TYPE: type, INDEX: index}
             self.print_table(self.subVars)
     def get(self, name):
