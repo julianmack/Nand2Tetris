@@ -1,10 +1,4 @@
-#Token Types:
-SYMBOL = "symbol"
-KEYWORD = "keyword"
-IDENTIFIER = "identifier"
-INT_CONST = "integerConstant"
-STRING_CONST = "stringConstant"
-
+from constants import *
 
 from helpers import is_alpha, is_symbol, is_numeric, keywords, jack_sample
 

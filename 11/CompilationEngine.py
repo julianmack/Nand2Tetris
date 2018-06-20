@@ -1,35 +1,5 @@
-#Token Types:
-SYMBOL = "symbol"
-KEYWORD = "keyword"
-IDENTIFIER = "identifier"
-INT_CONST = "integerConstant"
-STRING_CONST = "stringConstant"
 
-#Identifier Types
-CONSTANT = "constant"
-STATIC = "static"
-FIELD  = "field"
-ARG    = "argument"
-LCL    = "local"
-THIS   = "this"
-THAT   = "that"
-POINTER = "pointer"
-TEMP = "temp"
-
-CLASS  = "class"
-SUBROUTINE = "subroutine"
-
-statementTypes = ["let", "if", "while", "do", "return"]
-#vm_translation of operators
-operators = {"+": "add", "-": "sub", "*": None, \
-            "/": None, "&": "and", "|": "or", \
-            "<": "lt", ">": "gt", "=": "eq"}
-
-unaryOperators = {"-": "neg", "~": "not"}
-keywordConstants = ["true", "false", "null", "this"]
-import sys
-
-from helpers import prettify
+from constants import *
 from SymbolTable import SymbolTable
 from VMWriter import VMWriter
 from Token import Token
@@ -127,9 +97,6 @@ class CompilationEngine():
             self.VM.writePop(POINTER, 0) #store self in this
         elif self.subType == "constructor":
             n_args = self.symbols.varCount(THIS)
-            print(n_args)
-            self.symbols.print_table(self.symbols.classVars)
-            self.symbols.print_table(self.symbols.subVars)
             self.VM.writePush(CONSTANT, n_args)
             self.VM.writeCall("Memory.alloc", 1)
             self.VM.writePop(POINTER, 0) #store object in this
@@ -319,7 +286,7 @@ class CompilationEngine():
             else: #variable
                 type, kind, index = self.symbols.get(name)
                 self.VM.writePush(kind, index)
-                
+
         else:
             #print("after: ", tkn.tag, tkn.text)
             self.fault()

@@ -1,15 +1,4 @@
-#dictionary keywords
-KIND = "kind"
-TYPE = "type"
-INDEX = "index"
-SCOPE = "scope"
-
-ARG    = "argument"
-LCL    = "local"
-STATIC = "static"
-THIS   = "this"
-FIELD  = "field"
-CONSTANT = "constant"
+from constants import *
 
 class SymbolTable():
     """Symbols are held in nested dictionary of the form:
